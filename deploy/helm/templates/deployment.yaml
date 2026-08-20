@@ -1,0 +1,55 @@
+{{- include "agentserve.validate" . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    app.kubernetes.io/name: agentserve
+spec:
+  replicas: {{ .Values.gateway.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agentserve
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agentserve
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.gateway.port | quote }}
+        # Roll pods when config changes, otherwise a helm upgrade that only
+        # edits thresholds leaves every pod running the old values.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: gateway
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.gateway.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+          {{- if .Values.gateway.apiKeySecret }}
+          env:
+            - name: AGENTSERVE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.gateway.apiKeySecret }}
+                  key: api-key
+          {{- end }}
+          # /health is liveness and touches no dependency: a Redis blip must not
+          # get a healthy pod restarted. /ready checks the workers, so a pod that
+          # cannot reach them is pulled from the Service instead.
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.gateway.resources | nindent 12 }}

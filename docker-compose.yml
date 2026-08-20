@@ -1,0 +1,56 @@
+# Local stack. Uses the simulated backend by default so it runs without GPUs.
+# To point at real workers:
+#   AGENTSERVE_BACKEND=vllm AGENTSERVE_VLLM_ENDPOINTS=http://host:8000 docker compose up
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      AGENTSERVE_BACKEND: "${AGENTSERVE_BACKEND:-simulated}"
+      AGENTSERVE_VLLM_ENDPOINTS: "${AGENTSERVE_VLLM_ENDPOINTS:-}"
+      AGENTSERVE_REPLICAS: "4"
+      # Shared session map, so scaling the gateway stays correct.
+      AGENTSERVE_REDIS_URL: "redis://redis:6379/0"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx,sys; sys.exit(0 if httpx.get('http://localhost:8000/health').status_code==200 else 1)"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    volumes:
+      - ./deploy/grafana:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus

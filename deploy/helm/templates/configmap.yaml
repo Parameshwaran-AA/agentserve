@@ -1,0 +1,26 @@
+{{- include "agentserve.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+data:
+  # Every key here is read by agentserve/settings.py. If you add one, add it
+  # there too -- a ConfigMap key nothing reads is worse than no ConfigMap.
+  AGENTSERVE_BACKEND: "vllm"
+  AGENTSERVE_VLLM_ENDPOINTS: {{ include "agentserve.vllmEndpoints" . | quote }}
+  AGENTSERVE_VLLM_MODEL: {{ .Values.vllm.model | quote }}
+  AGENTSERVE_VLLM_TIMEOUT_S: {{ .Values.vllm.timeoutSeconds | quote }}
+  AGENTSERVE_VLLM_MAX_RETRIES: {{ .Values.vllm.maxRetries | quote }}
+  {{- if .Values.redis.enabled }}
+  AGENTSERVE_REDIS_URL: {{ .Values.redis.url | quote }}
+  AGENTSERVE_SESSION_TTL_S: {{ .Values.redis.sessionTtlSeconds | quote }}
+  {{- end }}
+  AGENTSERVE_PIN_THRESHOLD_MS: {{ .Values.policy.pinThresholdMs | quote }}
+  AGENTSERVE_OFFLOAD_THRESHOLD_MS: {{ .Values.policy.offloadThresholdMs | quote }}
+  AGENTSERVE_DEAD_SESSION_MS: {{ .Values.policy.deadSessionMs | quote }}
+  AGENTSERVE_AFFINITY_QUEUE_LIMIT: {{ .Values.policy.affinityQueueLimit | quote }}
+  AGENTSERVE_GPU_CACHE_TOKENS: {{ .Values.policy.gpuCacheTokens | quote }}
+  AGENTSERVE_DRAM_CACHE_TOKENS: {{ .Values.policy.dramCacheTokens | quote }}
+  AGENTSERVE_EWMA_ALPHA: {{ .Values.predictor.ewmaAlpha | quote }}
+  AGENTSERVE_PREDICTOR_PRIOR_MS: {{ .Values.predictor.priorMs | quote }}
+  AGENTSERVE_PREDICTOR_MIN_OBS: {{ .Values.predictor.minObservations | quote }}

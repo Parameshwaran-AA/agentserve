@@ -1,0 +1,56 @@
+{{- if .Values.redis.enabled }}
+{{- /*
+Single-instance Redis for the shared session map. This is deliberately not an
+HA setup: losing the map costs cache hits, not correctness -- every session
+simply re-homes on its next call. Trading availability for simplicity is the
+right call for a cache whose entries are all disposable.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-redis
+  labels:
+    app.kubernetes.io/name: agentserve-redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agentserve-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: agentserve-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - --maxmemory
+            - 512mb
+            - --maxmemory-policy
+            - allkeys-lru
+            - --save
+            - ""
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec: { command: ["redis-cli", "ping"] }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "500m", memory: "768Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-redis
+spec:
+  selector:
+    app.kubernetes.io/name: agentserve-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}

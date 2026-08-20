@@ -1,0 +1,76 @@
+{
+  "title": "AgentServe ,  agent-aware KV cache",
+  "uid": "agentserve-main",
+  "schemaVersion": 39,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "stat", "title": "GPU cache hit rate",
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [{
+        "expr": "sum(rate(agentserve_requests_total{tier=\"gpu\"}[5m])) / sum(rate(agentserve_requests_total[5m]))",
+        "legendFormat": "gpu"
+      }]
+    },
+    {
+      "type": "stat", "title": "Prompt tokens served from cache",
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [{
+        "expr": "sum(rate(agentserve_tokens_reused_total[5m])) / (sum(rate(agentserve_tokens_reused_total[5m])) + sum(rate(agentserve_tokens_computed_total[5m])))"
+      }]
+    },
+    {
+      "type": "stat", "title": "p95 time to first token",
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(agentserve_ttft_seconds_bucket[5m])) by (le))"
+      }]
+    },
+    {
+      "type": "stat", "title": "Affinity honored",
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 } },
+      "targets": [{
+        "expr": "sum(rate(agentserve_affinity_decisions_total{outcome=\"affinity\"}[5m])) / sum(rate(agentserve_affinity_decisions_total[5m]))"
+      }]
+    },
+    {
+      "type": "timeseries", "title": "Cache tier mix",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "targets": [{
+        "expr": "sum by (tier) (rate(agentserve_requests_total[1m]))",
+        "legendFormat": "{{tier}}"
+      }]
+    },
+    {
+      "type": "timeseries", "title": "GPU KV cache utilization by replica",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 } },
+      "targets": [{
+        "expr": "agentserve_gpu_cache_utilization",
+        "legendFormat": "replica {{replica}}"
+      }]
+    },
+    {
+      "type": "timeseries", "title": "Tokens parked in host DRAM",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "targets": [{
+        "expr": "agentserve_dram_cache_tokens",
+        "legendFormat": "replica {{replica}}"
+      }]
+    },
+    {
+      "type": "timeseries", "title": "Predicted tool gap (EWMA)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [{
+        "expr": "agentserve_predicted_tool_gap_seconds",
+        "legendFormat": "{{tool}}"
+      }]
+    }
+  ]
+}

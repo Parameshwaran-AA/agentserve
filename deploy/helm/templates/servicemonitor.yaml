@@ -1,0 +1,16 @@
+{{- if .Values.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Release.Name }}-gateway
+  labels:
+    app.kubernetes.io/name: agentserve
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: agentserve
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
