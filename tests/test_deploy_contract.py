@@ -5,7 +5,9 @@ rendered fine, mounted fine and changed nothing, which is worse than having no
 ConfigMap because the cluster looks configured. These fail the build if the
 manifests and settings.py drift apart again.
 """
+import ast
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -93,3 +95,61 @@ def test_dockerfile_pins_one_worker():
     """Replica cache state is per-process; multiple uvicorn workers diverge."""
     body = (ROOT / "Dockerfile").read_text()
     assert '"--workers", "1"' in body
+
+
+# ---- packaging -------------------------------------------------------------
+
+PYPROJECT = (ROOT / "pyproject.toml").read_text()
+
+LOCAL = {"agentserve", "bench", "scripts", "tests"}
+
+
+def _third_party_imports(*dirs: str) -> set[str]:
+    """Top-level imports, via ast so prose inside docstrings is not mistaken
+    for an import statement."""
+    found: set[str] = set()
+    for d in dirs:
+        for path in (ROOT / d).rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.Import):
+                    found |= {a.name.split(".")[0] for a in node.names}
+                elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+                    found.add(node.module.split(".")[0])
+    return {
+        m for m in found - LOCAL
+        if m not in sys.stdlib_module_names and m != "__future__"
+    }
+
+
+def test_setuptools_packages_are_explicit():
+    """Auto-discovery fails on this layout: bench/, deploy/ and notebooks/ sit
+    beside agentserve/ and setuptools refuses to guess. Without this, a clean
+    `pip install -e .` errors out and every CI job fails at the install step."""
+    assert "[tool.setuptools]" in PYPROJECT
+    assert 'packages = ["agentserve", "agentserve.backends", "bench"]' in PYPROJECT
+
+
+def test_build_system_is_declared():
+    assert "[build-system]" in PYPROJECT
+
+
+def test_runtime_imports_are_declared_dependencies():
+    for module in _third_party_imports("agentserve", "bench"):
+        assert module.replace("_", "-") in PYPROJECT.lower() or module in PYPROJECT, (
+            f"{module} is imported at runtime but not declared in pyproject.toml"
+        )
+
+
+def test_test_only_imports_are_declared_dev_dependencies():
+    """PyYAML was imported here and declared nowhere, which broke a clean install."""
+    for module in _third_party_imports("tests", "scripts"):
+        assert module.replace("_", "-") in PYPROJECT.lower() or module in PYPROJECT, (
+            f"{module} is imported by tests/scripts but not declared in pyproject.toml"
+        )
+
+
+def test_dockerfile_installs_from_pyproject():
+    """A hand-written package list in the Dockerfile drifts from pyproject silently."""
+    body = (ROOT / "Dockerfile").read_text()
+    assert "pip install --no-cache-dir ." in body
+    assert "COPY pyproject.toml" in body
