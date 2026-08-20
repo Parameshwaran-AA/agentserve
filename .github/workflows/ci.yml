@@ -111,10 +111,12 @@ jobs:
       - name: Smoke test the image
         run: |
           docker run -d --name ag -p 8000:8000 agentserve:ci
-          for i in $(seq 1 20); do
-            curl -sf http://localhost:8000/health && break || sleep 2
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:8000/health >/dev/null && break || sleep 2
           done
-          curl -sf http://localhost:8000/health
+          if ! curl -sf http://localhost:8000/health; then
+            echo "gateway never became healthy"; docker logs ag; docker rm -f ag; exit 1
+          fi
           docker rm -f ag
 
   helm:
