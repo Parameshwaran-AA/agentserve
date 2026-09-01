@@ -3,12 +3,14 @@ FROM python:3.11-slim AS base
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir "fastapi>=0.110" "uvicorn[standard]>=0.27" \
-        "prometheus-client>=0.20" "httpx>=0.27" "tiktoken>=0.6" "redis>=5.0"
-
+# Sources are copied before the install because pyproject lists its packages
+# explicitly, so they have to exist at build time. Installing from pyproject
+# rather than a hand-written list keeps the image and the declared
+# dependencies from drifting apart.
+COPY pyproject.toml README.md ./
 COPY agentserve/ ./agentserve/
 COPY bench/ ./bench/
+RUN pip install --no-cache-dir .
 
 RUN adduser --disabled-password --gecos "" --uid 10001 agentserve
 USER 10001
