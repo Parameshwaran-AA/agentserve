@@ -7,6 +7,10 @@ data:
   # Every key here is read by agentserve/settings.py. If you add one, add it
   # there too -- a ConfigMap key nothing reads is worse than no ConfigMap.
   AGENTSERVE_BACKEND: "vllm"
+  AGENTSERVE_ROUTER: {{ .Values.gateway.router | quote }}
+  AGENTSERVE_POLICY: {{ .Values.gateway.policy | quote }}
+  AGENTSERVE_TOKENIZER: {{ .Values.gateway.tokenizer | quote }}
+  AGENTSERVE_MAX_SESSIONS: {{ .Values.gateway.maxSessions | quote }}
   AGENTSERVE_VLLM_ENDPOINTS: {{ include "agentserve.vllmEndpoints" . | quote }}
   AGENTSERVE_VLLM_MODEL: {{ .Values.vllm.model | quote }}
   AGENTSERVE_VLLM_TIMEOUT_S: {{ .Values.vllm.timeoutSeconds | quote }}

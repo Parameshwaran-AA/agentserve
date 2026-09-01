@@ -153,3 +153,60 @@ def test_dockerfile_installs_from_pyproject():
     body = (ROOT / "Dockerfile").read_text()
     assert "pip install --no-cache-dir ." in body
     assert "COPY pyproject.toml" in body
+
+
+# ---- chart / code drift, the other direction --------------------------------
+
+# Read by settings.py and deliberately absent from the ConfigMap.
+CONFIGMAP_EXEMPT = {
+    # A bearer token in a ConfigMap is a bearer token in `kubectl get -o yaml`.
+    # deployment.yaml pulls it from a Secret instead.
+    "AGENTSERVE_API_KEY",
+    # Simulated backend only. Under vllm the endpoint list decides the count,
+    # and letting the two drift indexes off the end of the list.
+    "AGENTSERVE_REPLICAS",
+}
+
+
+@pytest.mark.parametrize("key", sorted(ENV_IN_SETTINGS - CONFIGMAP_EXEMPT))
+def test_every_settings_key_is_exposed_by_the_chart(key):
+    """The mirror of test_every_configmap_key_is_actually_read. Without it a knob
+    can exist in the code, be documented in the README, and be unreachable on a
+    cluster, which is how AGENTSERVE_ROUTER and AGENTSERVE_POLICY (the control
+    arm of the A/B) went missing from the chart."""
+    assert key in ENV_IN_CONFIGMAP, (
+        f"{key} is read by settings.py but no Helm ConfigMap key sets it, so it "
+        "cannot be configured on a cluster. Add it to configmap.yaml, or to "
+        "CONFIGMAP_EXEMPT with the reason."
+    )
+
+
+def test_api_key_is_wired_from_a_secret_not_the_configmap():
+    body = (CHART / "templates" / "deployment.yaml").read_text()
+    assert "AGENTSERVE_API_KEY" in body and "secretKeyRef" in body
+    assert "AGENTSERVE_API_KEY" not in ENV_IN_CONFIGMAP
+
+
+def _project_version() -> str:
+    return re.search(r'^version = "([^"]+)"', PYPROJECT, re.M).group(1)
+
+
+def test_chart_version_tracks_the_package():
+    """A chart claiming appVersion 0.1.0 while /health reports 1.0.0 makes every
+    rollout ambiguous about what is actually running."""
+    chart = yaml.safe_load((CHART / "Chart.yaml").read_text())
+    assert chart["appVersion"] == _project_version()
+    assert str(VALUES["image"]["tag"]) == _project_version()
+
+
+def test_gateway_reports_the_installed_version():
+    """Hard-coding the version in gateway.py means bumping pyproject silently
+    leaves /health lying about which build is serving."""
+    from agentserve import __version__
+
+    assert __version__ == _project_version()
+    assert '"1.0.0"' not in (ROOT / "agentserve" / "gateway.py").read_text()
+
+
+def test_chart_image_is_not_a_placeholder():
+    assert "example" not in VALUES["image"]["repository"]

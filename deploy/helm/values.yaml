@@ -1,5 +1,5 @@
 image:
-  repository: ghcr.io/example/agentserve
+  repository: ghcr.io/parameshwaran-aa/agentserve
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 
@@ -12,6 +12,13 @@ gateway:
   replicaCount: 1
   port: 8000
   apiKeySecret: ""        # name of a Secret with key `api-key`; empty disables auth
+  # Setting router and policy to their baseline values turns this same image
+  # into the control arm of an A/B, so a measured difference comes from routing
+  # and eviction rather than from two different pieces of software.
+  router: affinity        # affinity | round-robin
+  policy: adaptive        # adaptive | lru
+  tokenizer: cl100k_base
+  maxSessions: 100000     # bound on the in-memory session map
   resources:
     requests: { cpu: "500m", memory: "1Gi" }
     limits:   { cpu: "2",    memory: "4Gi" }
