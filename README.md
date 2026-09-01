@@ -139,13 +139,16 @@ reports the measured difference. It fits a free Kaggle or Colab T4. See
 run, but not a tuned workflow-graph scheduler. Traces are synthetic, matched to
 published workload shapes rather than captured from production. No multi-tenant
 fairness, priority or preemption. The predictor keys only on tool name, not repository
-size or machine load.
+size or machine load. The load-driven detour out of affinity is unit tested but
+never fires in the benchmark: across 8 seeds the router reports 7,020 affinity
+decisions and 0 rebalances, so the results table below is evidence for session
+affinity and the retention policy, not for that valve.
 
 ## Running it
 
 ```bash
 pip install -e ".[dev]"
-pytest -q                                     # 130 tests
+pytest -q                                     # 163 tests
 python -m bench.run --sessions 300 --seeds 8  # reproduces the table
 python scripts/integration_check.py           # end to end against mock workers
 ```
@@ -296,7 +299,7 @@ scripts/
 notebooks/gpu_validation.ipynb    Kaggle / Colab, free tier
 deploy/helm/                      gateway, vLLM StatefulSet, Redis, ServiceMonitor
 deploy/grafana/                   hit rate, tier mix, cache utilization, tool gaps
-tests/                            130 tests across every module
+tests/                            163 tests across every module
 ```
 
 ## Prior work
