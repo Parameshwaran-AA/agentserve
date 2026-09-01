@@ -140,3 +140,30 @@ jobs:
             echo "chart rendered an unsafe multi-pod config"; exit 1
           fi
           echo "guard correctly rejected multi-pod without a shared session store"
+
+  publish:
+    # The Helm chart's default image tag points at this. Without a published
+    # image `helm install agentserve deploy/helm` renders fine and then sits in
+    # ImagePullBackOff, which is a worse first impression than no chart at all.
+    # Main only: a fork's pull request has no package write scope.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [docker, helm]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          version=$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)
+          image="ghcr.io/$owner/agentserve"
+          docker build -t "$image:$version" -t "$image:latest" .
+          docker push "$image:$version"
+          docker push "$image:latest"
+          echo "pushed $image:$version"
