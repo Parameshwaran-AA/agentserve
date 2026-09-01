@@ -20,6 +20,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
+from . import __version__
 from .backends.simulated import SimulatedBackend
 from .backends.vllm import VllmBackend
 from .metrics import AFFINITY, CACHE_ACTIONS, observe_cluster, observe_result, render
@@ -84,7 +85,7 @@ def create_app(settings: Settings | None = None, backend: Any = None) -> FastAPI
             await closer()
         store.close()
 
-    app = FastAPI(title="AgentServe", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="AgentServe", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.replicas = replicas
     app.state.router = router
@@ -106,7 +107,7 @@ def create_app(settings: Settings | None = None, backend: Any = None) -> FastAPI
         gets a healthy pod restarted."""
         return {
             "status": "ok",
-            "version": "1.0.0",
+            "version": __version__,
             "backend": backend.name,
             "replicas": len(replicas),
             "policy": policy.name,
